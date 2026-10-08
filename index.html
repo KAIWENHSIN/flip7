@@ -1,0 +1,606 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Flip 7 With a Vengeance 計分器</title>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,500..900&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+  --bg:#e9e6df;--felt:#1f3a2e;--felt-deep:#162a21;
+  --paper:#fbfaf6;--ink:#17201b;--ink-soft:#4f5a54;--line:#cfcac0;
+  --red:#d8322a;--gold:#e3a51d;--chip:#ffffff;--chip-ink:#17201b;
+  --shadow:0 1px 0 rgba(0,0,0,.18),0 6px 14px -8px rgba(0,0,0,.35);
+  --radius:14px;--tile-radius:10px;
+  --font-num:"Archivo",system-ui,"Helvetica Neue",Arial,sans-serif;
+  --font-text:"Noto Sans TC","PingFang TC","Microsoft JhengHei",system-ui,sans-serif;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){--bg:#101614;--felt:#1a2f26;--felt-deep:#0f1d17;--paper:#1b2320;--ink:#eef0ec;--ink-soft:#a5ada7;--line:#33403a;--chip:#f5f3ec;--chip-ink:#17201b}
+}
+:root[data-theme="dark"]{--bg:#101614;--felt:#1a2f26;--felt-deep:#0f1d17;--paper:#1b2320;--ink:#eef0ec;--ink-soft:#a5ada7;--line:#33403a;--chip:#f5f3ec;--chip-ink:#17201b}
+html{scroll-padding-top:env(safe-area-inset-top,0px);height:100%}
+*,*::before,*::after{box-sizing:inherit;margin:0}
+body{min-height:100%;background:var(--bg);color:var(--ink);font-family:var(--font-text);font-size:15px;line-height:1.5;-webkit-tap-highlight-color:transparent}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer;padding:0}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
+input,select{font:inherit;font-size:16px;color:var(--ink);background:var(--paper);border:1px solid var(--line);border-radius:8px;padding:8px 10px}
+.app{max-width:560px;margin:0 auto;padding:0 14px 110px}
+
+.top{display:flex;align-items:flex-end;justify-content:space-between;gap:10px;padding:14px 0 8px}
+.brand{font-family:var(--font-num);font-weight:900;font-variation-settings:"wdth" 118;font-size:22px;letter-spacing:-.01em;line-height:1}
+.brand small{display:block;font-family:var(--font-text);font-weight:500;font-size:12px;color:var(--ink-soft);margin-top:5px}
+.iconbtn{border:1px solid var(--line);background:var(--paper);border-radius:999px;padding:7px 13px;font-size:13px;font-weight:500}
+.sync{font-size:11px;color:var(--ink-soft);display:flex;align-items:center;gap:5px;padding:0 0 6px}
+.sync i{width:7px;height:7px;border-radius:50%;background:#9aa39e;display:inline-block}
+.sync i.ok{background:#3aa66a}.sync i.bad{background:var(--red)}
+.banner{background:var(--gold);color:#1c1608;border-radius:var(--radius);padding:10px 14px;margin:4px 0 10px;display:flex;justify-content:space-between;align-items:center;gap:10px;font-weight:700}
+.banner button{background:#1c1608;color:#fff;border-radius:999px;padding:6px 12px;font-size:13px;font-weight:500}
+.notice{background:var(--paper);border:1px solid var(--line);border-radius:var(--radius);padding:10px 14px;margin:4px 0 10px;font-size:13px;color:var(--ink-soft)}
+
+.board{display:grid;gap:6px;padding:6px 0 10px;grid-template-columns:repeat(var(--cols,4),minmax(0,1fr))}
+.pcard{min-width:0;background:var(--paper);border:1.5px solid var(--line);border-radius:12px;padding:7px 8px 6px;text-align:left;position:relative;transition:border-color .15s}
+.pcard.sel{border-color:var(--ink);box-shadow:var(--shadow)}
+.pcard .pn{font-weight:700;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-right:14px}
+.pcard .pt{font-family:var(--font-num);font-weight:800;font-size:24px;line-height:1.05;margin-top:1px}
+.pcard .pr{font-size:11px;color:var(--ink-soft);margin-top:1px;min-height:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pcard .pr b{color:var(--ink)}
+.pcard .pr.bust b{color:var(--red)}
+.pcard .pr.f7 b{color:var(--gold)}
+.board.dense .pcard{padding:6px 6px 5px;border-radius:10px}
+.board.dense .pcard .pn{font-size:11px}
+.board.dense .pcard .pt{font-size:20px}
+.board.dense .pcard .pr{font-size:10px}
+.board.dense .pcard .crown{font-size:10px;top:4px;right:5px}
+.pcard .crown{position:absolute;top:5px;right:6px;font-size:11px}
+.pcard.add{display:grid;place-items:center;color:var(--ink-soft);font-size:22px;border-style:dashed;background:transparent;min-height:58px}
+
+.table{background:radial-gradient(120% 80% at 50% 0%,rgba(255,255,255,.07),transparent 60%),var(--felt);border-radius:20px;padding:14px 14px 16px;color:#f3f1ea;box-shadow:inset 0 0 0 1px rgba(255,255,255,.06),inset 0 0 60px rgba(0,0,0,.25)}
+.thead{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-bottom:8px}
+.thead .who{font-weight:700;font-size:16px}
+.thead .state{font-size:12px;opacity:.75}
+.live{display:flex;align-items:baseline;gap:12px;margin:2px 0 12px}
+.live .n{font-family:var(--font-num);font-weight:900;font-size:64px;line-height:.9;font-variation-settings:"wdth" 110;letter-spacing:-.02em;min-width:2ch}
+.live .n.bust{color:#ff6b61}.live .n.gold{color:#ffcc55}
+.live .calc{font-size:12px;opacity:.8;line-height:1.45}
+.tiles{display:grid;grid-template-columns:repeat(7,1fr);gap:7px}
+.tile{position:relative;aspect-ratio:3/4;border-radius:var(--tile-radius);background:var(--chip);color:var(--chip-ink);display:grid;place-items:center;font-family:var(--font-num);font-weight:900;font-size:clamp(22px,7vw,32px);font-variation-settings:"wdth" 110;box-shadow:0 1px 0 rgba(0,0,0,.25),0 3px 6px -3px rgba(0,0,0,.4);transition:transform .08s,background .12s,color .12s;user-select:none}
+.tile:active{transform:scale(.95)}
+.tile .cnt{position:absolute;top:-6px;right:-6px;background:var(--ink);color:#fff;border-radius:999px;min-width:20px;height:20px;display:grid;place-items:center;font-size:11px;font-family:var(--font-text);font-weight:700;border:2px solid var(--felt)}
+.tile.on{background:hsl(var(--h) 72% 48%);color:#fff;box-shadow:0 0 0 2px #fff inset,0 4px 10px -4px rgba(0,0,0,.6)}
+.tile.sp{outline:2px dashed hsl(var(--h) 72% 48%);outline-offset:-5px}
+.tile.sp.on{outline-color:#fff}
+.row{display:flex;flex-wrap:wrap;gap:7px;margin-top:12px}
+.chip{border-radius:999px;padding:7px 12px;font-size:13px;font-weight:500;background:rgba(255,255,255,.1);color:#f3f1ea;border:1.5px solid rgba(255,255,255,.18)}
+.chip.on{background:#f3f1ea;color:var(--felt-deep);border-color:#f3f1ea;font-weight:700}
+.chip.bust.on{background:var(--red);color:#fff;border-color:var(--red)}
+.chip.gold.on{background:var(--gold);color:#1c1608;border-color:var(--gold)}
+.chip.mod{font-family:var(--font-num);font-weight:800;font-size:15px;padding:6px 13px;background:transparent;border-color:var(--mc);color:var(--mc)}
+.chip.mod.on{background:var(--mc);color:var(--mt);border-color:var(--mc)}
+.sublabel{font-size:12px;opacity:.65;margin-top:12px}
+.f7box{margin-top:12px;background:rgba(255,204,85,.12);border:1px solid rgba(255,204,85,.45);border-radius:12px;padding:10px 12px}
+.f7box .t{font-weight:700;color:#ffcc55;font-size:14px}
+.f7box .row{margin-top:8px}
+
+.bar{position:fixed;left:0;right:0;bottom:0;padding:10px 14px calc(10px + env(safe-area-inset-bottom,0px));background:linear-gradient(to top,var(--bg) 70%,transparent)}
+.bar .in{max-width:560px;margin:0 auto;display:flex;gap:8px}
+.primary{flex:1;background:var(--ink);color:var(--bg);border-radius:14px;padding:15px 16px;font-weight:700;font-size:16px;box-shadow:var(--shadow)}
+.primary:disabled{opacity:.4;cursor:not-allowed}
+.secondary{background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:0 16px;font-weight:500}
+.secondary:disabled{opacity:.4}
+
+.sheet{position:fixed;inset:0;z-index:50;background:rgba(0,0,0,.45);display:flex;align-items:flex-end;justify-content:center}
+.sheet[hidden]{display:none}
+.sheet .box{width:100%;max-width:560px;max-height:calc(100% - 40px - env(safe-area-inset-top,0px));background:var(--paper);color:var(--ink);border-radius:18px 18px 0 0;display:flex;flex-direction:column;box-shadow:0 -10px 40px rgba(0,0,0,.35);padding-bottom:env(safe-area-inset-bottom,0px)}
+.dhead{display:flex;justify-content:space-between;align-items:center;padding:14px 16px;border-bottom:1px solid var(--line);flex:0 0 auto}
+.dhead h2{font-size:16px;font-weight:700}
+.dbody{padding:14px 16px 24px;overflow:auto;-webkit-overflow-scrolling:touch;flex:1;min-height:0}
+.field{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 0;border-bottom:1px solid var(--line)}
+.field:last-child{border-bottom:0}
+.field label{font-weight:500}
+.field small{display:block;color:var(--ink-soft);font-weight:400;font-size:12px}
+.field input[type=number]{width:84px;text-align:right}
+.seg{display:flex;border:1px solid var(--line);border-radius:10px;overflow:hidden;flex:0 0 auto}
+.seg button{padding:7px 12px;font-size:13px}
+.seg button.on{background:var(--ink);color:var(--bg)}
+.switch{width:46px;height:26px;border-radius:999px;background:var(--line);position:relative;flex:0 0 auto}
+.switch::after{content:"";position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#fff;transition:left .15s}
+.switch.on{background:var(--red)}.switch.on::after{left:23px}
+.plist{display:flex;flex-direction:column;gap:6px;margin-top:8px}
+.plist .pi{display:flex;gap:6px;align-items:center}
+.plist input{flex:1;min-width:0}
+.small{font-size:13px;padding:7px 11px;border:1px solid var(--line);border-radius:8px;background:var(--bg)}
+.small.danger{color:var(--red);border-color:var(--red)}
+.hist{width:100%;border-collapse:collapse;font-size:13px;overflow-x:auto;display:block}
+.hist th,.hist td{padding:6px 8px;text-align:right;white-space:nowrap;border-bottom:1px solid var(--line)}
+.hist th:first-child,.hist td:first-child{text-align:left;position:sticky;left:0;background:var(--paper)}
+.hist td.b{color:var(--red)}.hist td.g{color:var(--gold);font-weight:700}
+.hist tfoot td{font-weight:700;font-family:var(--font-num);font-size:15px}
+.empty{text-align:center;color:var(--ink-soft);padding:30px 10px}
+.note{font-size:12px;color:var(--ink-soft);margin-top:10px}
+.sheet .box.ask{border-radius:18px;max-width:420px;margin-bottom:auto;margin-top:auto}
+.sheet.center{align-items:center;padding:0 16px}
+.ask-title{font-weight:700;font-size:16px}
+.ask-msg{color:var(--ink-soft);font-size:13px;margin-top:4px}
+#askInput{width:100%;margin-top:12px}
+.ask-btns{display:flex;gap:8px;justify-content:flex-end;margin-top:16px}
+.small.primaryish{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.small.primaryish.danger{background:var(--red);color:#fff;border-color:var(--red)}
+.toast{position:fixed;left:50%;bottom:calc(90px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:9px 14px;border-radius:999px;font-size:13px;z-index:60;box-shadow:var(--shadow);max-width:90vw}
+.toast[hidden]{display:none}
+.room{padding:30px 0 40px;max-width:380px;margin:0 auto}
+.room h1{font-family:var(--font-num);font-weight:900;font-size:40px;line-height:.95;font-variation-settings:"wdth" 118;letter-spacing:-.02em}
+.room h1 em{font-style:normal;display:block;color:var(--red)}
+.room p{color:var(--ink-soft);margin:12px 0 18px}
+.room .join{display:flex;gap:8px;margin-top:8px}
+.room .join input{flex:1;min-width:0;text-transform:uppercase;font-family:var(--font-num);font-weight:800;font-size:22px;letter-spacing:.12em;text-align:center}
+.room .or{text-align:center;color:var(--ink-soft);font-size:12px;margin:16px 0}
+.roompill{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:var(--paper);border-radius:999px;padding:5px 10px 5px 12px;font-size:12px}
+.roompill b{font-family:var(--font-num);font-weight:800;font-size:14px;letter-spacing:.1em}
+@media (prefers-reduced-motion: reduce){*{transition:none !important}}
+</style>
+</head>
+<body>
+<div class="app" id="app"></div>
+<div class="bar" id="bar">
+  <div class="in">
+    <button class="secondary" id="btnUndo">撤回</button>
+    <button class="primary" id="btnSettle">結算這一回合</button>
+  </div>
+</div>
+
+<div class="sheet" id="dlgSettings" hidden><div class="box">
+  <div class="dhead"><h2>設定</h2><button class="iconbtn" data-close>關閉</button></div>
+  <div class="dbody">
+    <div class="field">
+      <label>目標分數<small>有人達標的那一回合結束後，總分最高者獲勝</small></label>
+      <input type="number" id="inTarget" min="50" step="10">
+    </div>
+    <div class="field">
+      <label>Brutal Mode<small>回合分可為負數、修正牌可丟給爆牌者、Flip 7 可改為扣對手 15 分</small></label>
+      <button class="switch" id="swBrutal" role="switch" aria-label="Brutal Mode"></button>
+    </div>
+    <div class="field">
+      <label>The Zero 歸零範圍<small>規則書原文「your total score becomes zero」，官方與 BGA 皆解讀為該回合分數；若你們當作累計總分歸零，可切換</small></label>
+      <div class="seg"><button id="zeroRound">本回合</button><button id="zeroTotal">累計總分</button></div>
+    </div>
+    <div class="field" style="flex-direction:column;align-items:stretch">
+      <label>玩家</label>
+      <div class="plist" id="plist"></div>
+      <div style="margin-top:8px"><button class="small" id="btnAddPlayer">＋ 新增玩家</button></div>
+    </div>
+    <div class="field" style="flex-direction:column;align-items:stretch;gap:6px">
+      <button class="small" id="btnNewGame">同一組玩家，重新開局（分數歸零）</button>
+      <button class="small danger" id="btnResetAll">清除所有玩家與紀錄</button>
+    </div>
+  </div>
+</div></div>
+
+<div class="sheet" id="dlgHistory" hidden><div class="box">
+  <div class="dhead"><h2>回合紀錄</h2><button class="iconbtn" data-close>關閉</button></div>
+  <div class="dbody" id="histBody"></div>
+</div></div>
+
+<div class="sheet" id="dlgAsk" hidden><div class="box ask">
+  <div class="dbody">
+    <div class="ask-title" id="askTitle"></div>
+    <div class="ask-msg" id="askMsg"></div>
+    <input id="askInput" type="text" hidden>
+    <div class="ask-btns"><button class="small" id="askCancel">取消</button><button class="small primaryish" id="askOk">確定</button></div>
+  </div>
+</div></div>
+<div class="toast" id="toast" hidden></div>
+
+<script>
+(function(){
+'use strict';
+const KEY='flip7v-scorer-fb';
+const SELKEY='flip7v-selected';
+const NUMS=[0,1,2,3,4,5,6,7,8,9,10,11,12,13];
+const MODS=['÷2','−2','−4','−6','−8','−10'];
+const MOD_COLOR={'÷2':['#8a63e8','#fff'],'−2':['#f2b0a9','#3a1210'],'−4':['#e98a81','#3a1210'],'−6':['#df625a','#fff'],'−8':['#cb3d35','#fff'],'−10':['#9c1f1a','#fff']};
+const HUES={0:210,1:340,2:22,3:46,4:80,5:135,6:170,7:195,8:220,9:250,10:275,11:305,12:5,13:40};
+
+function uid(){return Math.random().toString(36).slice(2,9)}
+function newLine(){return {nums:{},lucky:false,unlucky:false,mods:[],bust:false,f7:'self'}}
+function freshMeta(){
+  return {gameId:uid(),players:[],target:200,brutal:false,zeroTotal:false,history:[]};
+}
+
+/* ---------- state ---------- */
+let meta=null;           // shared
+let lines={};            // pid -> line (shared, keyed by gameId+round)
+let selected=null;       // per device
+let fdb=null,online=false,readOnly=false,syncState='local',room=null,unsubs=[];
+const ROOMKEY='flip7v-room';
+function metaRef(){return fdb.doc('rooms/'+room+'/meta/game')}
+function linesRef(){return fdb.collection('rooms/'+room+'/lines')}
+const pendingLine={},inflight={};
+let metaInflight=null,metaPending=null;
+let dismissedBanner=null;
+
+function roundNo(){return meta.history.length+1}
+function lineFor(pid){
+  const l=lines[pid];
+  if(l&&l.gameId===meta.gameId&&l.round===roundNo())return l;
+  return newLine();
+}
+function allLines(){const o={};meta.players.forEach(p=>o[p.id]=lineFor(p.id));return o}
+
+/* ---------- scoring ---------- */
+function qualCount(l){return NUMS.reduce((a,n)=>a+(l.nums[n]||0),0)}
+function isFlip7(l){return !l.bust&&qualCount(l)>=7}
+function numSum(l){return NUMS.reduce((a,n)=>a+n*(l.nums[n]||0),0)}
+function hasZero(l){return (l.nums[0]||0)>0}
+function roundScore(l,pid,ls){
+  const f7=isFlip7(l);const steps=[];let base;
+  if(l.bust){base=0;steps.push('爆牌 → 0')}
+  else{
+    base=numSum(l);
+    if(hasZero(l)&&!f7){
+      if(meta.zeroTotal){steps.push('持有 0 → 累計總分歸零')}
+      else{base=0;steps.push('持有 0 → 本回合歸零')}
+    }else steps.push('數字 '+base);
+  }
+  if(!l.bust||meta.brutal){
+    if(l.mods.includes('÷2')){base=Math.floor(base/2);steps.push('÷2 → '+base)}
+    const neg=l.mods.filter(m=>m!=='÷2').reduce((a,m)=>a+parseInt(m.replace('−','-')),0);
+    if(neg){base+=neg;steps.push(neg+' → '+base)}
+  }
+  if(!meta.brutal&&base<0){base=0;steps.push('不低於 0')}
+  if(f7&&(!meta.brutal||l.f7==='self')){base+=15;steps.push('Flip 7 +15')}
+  Object.entries(ls).forEach(([oid,ol])=>{if(oid!==pid&&meta.brutal&&isFlip7(ol)&&ol.f7===pid){base-=15;steps.push('被 Flip 7 扣 15')}});
+  return {score:base,steps};
+}
+function totals(){
+  const t={};meta.players.forEach(p=>t[p.id]=0);
+  meta.history.forEach(r=>meta.players.forEach(p=>{
+    if(r.zeroReset&&r.zeroReset[p.id])t[p.id]=0;
+    t[p.id]+=(r.scores[p.id]||0);
+  }));
+  return t;
+}
+
+/* ---------- persistence ---------- */
+function loadLocal(){try{const r=localStorage.getItem(KEY);return r?JSON.parse(r):null}catch(e){return null}}
+function saveLocal(){try{localStorage.setItem(KEY,JSON.stringify({meta,lines}))}catch(e){}}
+function loadSel(){try{return localStorage.getItem(SELKEY)}catch(e){return null}}
+function saveSel(){try{localStorage.setItem(SELKEY,selected||'')}catch(e){}}
+
+function commitMeta(){
+  if(!online){saveLocal();render();return}
+  render();
+  metaPending=JSON.parse(JSON.stringify(meta));
+  flushMeta();
+}
+function flushMeta(){
+  if(metaInflight||!metaPending)return;
+  const body=metaPending;metaPending=null;
+  body.updatedAt=Date.now();metaInflight=metaRef().set(body).catch(onWriteError).finally(()=>{metaInflight=null;flushMeta()});
+}
+function commitLine(pid,line){
+  line.gameId=meta.gameId;line.round=roundNo();line.updatedAt=Date.now();
+  lines[pid]=line;
+  if(!online){saveLocal();render();return}
+  render();
+  pendingLine[pid]=JSON.parse(JSON.stringify(line));
+  flushLine(pid);
+}
+function flushLine(pid){
+  if(inflight[pid]||!pendingLine[pid])return;
+  const body=pendingLine[pid];delete pendingLine[pid];
+  inflight[pid]=linesRef().doc(pid).set(body).catch(onWriteError).finally(()=>{delete inflight[pid];flushLine(pid)});
+}
+function onWriteError(e){
+  console.warn('write failed',e);
+  if(e&&e.code==='permission-denied'){toast('寫入被拒絕：請檢查 Firestore 安全規則');}
+  syncState='bad';render();
+}
+
+/* ---------- render ---------- */
+const app=document.getElementById('app');
+function esc(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+
+function render(){
+  if(!meta){app.innerHTML='<div class="empty">載入中…</div>';return}
+  if(!meta.players.length){
+    app.innerHTML=`<div class="top"><div class="brand">FLIP 7<small>With a Vengeance 計分器</small></div>
+      <div style="display:flex;gap:6px"><button class="iconbtn" id="btnSet">設定</button></div></div>
+      ${room?`<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding-bottom:6px"><span class="roompill">房間 <b>${esc(room)}</b></span><div style="display:flex;gap:6px"><button class="iconbtn" id="btnShare">分享連結</button><button class="iconbtn" id="btnLeave">換房間</button></div></div>`:''}
+      <div class="empty">還沒有玩家。<br><button class="small primaryish" id="btnQuickAdd" style="margin-top:12px;padding:10px 18px">＋ 新增第一位玩家</button></div>`;
+    document.getElementById('btnSettle').disabled=true;document.getElementById('btnUndo').disabled=true;return;
+  }
+  if(!selected||!meta.players.find(p=>p.id===selected))selected=meta.players[0].id;
+  const T=totals();const ls=allLines();
+  const rn=roundNo();
+  const maxT=Math.max(...Object.values(T));
+  const sel=meta.players.find(p=>p.id===selected);
+  const L=ls[sel.id];
+  const rs=roundScore(L,sel.id,ls);
+  const f7=isFlip7(L);const qc=qualCount(L);
+  const anyF7=meta.players.some(p=>isFlip7(ls[p.id]));
+
+  let h=`<div class="top"><div class="brand">FLIP 7<small>With a Vengeance 計分器 · 第 ${rn} 回合 · 目標 ${meta.target}${meta.brutal?' · Brutal':''}</small></div>
+      <div style="display:flex;gap:6px"><button class="iconbtn" id="btnHist">紀錄</button><button class="iconbtn" id="btnSet">設定</button></div></div>`;
+  if(room)h+=`<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding-bottom:6px"><span class="roompill">房間 <b>${esc(room)}</b></span><div style="display:flex;gap:6px"><button class="iconbtn" id="btnShare">分享連結</button><button class="iconbtn" id="btnLeave">換房間</button></div></div>`;
+  const syncLabel=syncState==='ok'?'多人同步中，同房間的人都可以在自己的手機輸入':syncState==='bad'?'同步中斷，請檢查網路':'單機模式（這台裝置自己記）';
+  h+=`<div class="sync"><i class="${syncState==='ok'?'ok':syncState==='bad'?'bad':''}"></i>${syncLabel}</div>`;
+  if(readOnly)h+=`<div class="notice">你目前是檢視者，看得到分數但不能輸入。請擁有者在分享設定把你的權限改成 Contributor（可互動）。</div>`;
+
+  if(maxT>=meta.target&&dismissedBanner!==meta.history.length){
+    const ws=meta.players.filter(p=>T[p.id]===maxT);
+    h+=`<div class="banner"><span>🏆 ${ws.map(w=>esc(w.name)).join('、')} ${maxT} 分${ws.length>1?'（平手）':''}</span><button id="btnBannerNew">重新開局</button></div>`;
+  }
+
+  const nCards=meta.players.length+(readOnly?0:1);
+  const cols=nCards<=3?nCards:nCards<=8?4:nCards<=15?5:6;
+  h+=`<div class="board ${cols>=5?'dense':''}" style="--cols:${cols}">`;
+  meta.players.forEach(p=>{
+    const l=ls[p.id];const r=roundScore(l,p.id,ls);
+    const cls=l.bust?'bust':(isFlip7(l)?'f7':'');
+    const lab=l.bust?'爆牌':(isFlip7(l)?'Flip 7':'回合');
+    h+=`<button class="pcard ${p.id===selected?'sel':''}" data-sel="${p.id}">
+      ${T[p.id]===maxT&&maxT>0?'<span class="crown">👑</span>':''}
+      <div class="pn">${esc(p.name)}</div><div class="pt">${T[p.id]}</div>
+      <div class="pr ${cls}">${lab} <b>${r.score>0?'+':''}${r.score}</b></div></button>`;
+  });
+  if(!readOnly)h+=`<button class="pcard add" id="btnQuickAdd" title="新增玩家">＋</button>`;
+  h+=`</div>`;
+
+  h+=`<div class="table">
+    <div class="thead"><div class="who">${esc(sel.name)}</div><div class="state">${L.bust?'已爆牌':(f7?'完成 Flip 7，回合立即結束':qc+' 張數字牌')}</div></div>
+    <div class="live"><div class="n ${L.bust?'bust':(f7?'gold':'')}">${rs.score}</div><div class="calc">${rs.steps.join('<br>')}</div></div>
+    <div class="tiles">`;
+  NUMS.forEach(n=>{
+    const c=L.nums[n]||0;
+    const sp=(n===0)||(n===7&&L.unlucky)||(n===13&&L.lucky);
+    h+=`<button class="tile ${c?'on':''} ${sp?'sp':''}" style="--h:${HUES[n]}" data-num="${n}" aria-label="數字 ${n}">${n}${c>1?`<span class="cnt">×${c}</span>`:''}</button>`;
+  });
+  h+=`</div>
+    <div class="row">
+      <button class="chip ${L.lucky?'on':''}" data-tog="lucky">Lucky 13${L.lucky?"（可再收一張 13）":""}</button>
+      <button class="chip ${L.unlucky?'on':''}" data-tog="unlucky">Unlucky 7</button>
+      <button class="chip bust ${L.bust?'on':''}" data-tog="bust">爆牌</button>
+    </div>
+    <div class="sublabel">修正牌</div>
+    <div class="row">${MODS.map(m=>`<button class="chip mod ${L.mods.includes(m)?'on':''}" style="--mc:${MOD_COLOR[m][0]};--mt:${MOD_COLOR[m][1]}" data-mod="${m}">${m}</button>`).join('')}</div>`;
+  if(f7&&meta.brutal){
+    h+=`<div class="f7box"><div class="t">Flip 7 獎勵怎麼用？</div><div class="row">
+      <button class="chip gold ${L.f7==='self'?'on':''}" data-f7="self">自己 +15</button>
+      ${meta.players.filter(p=>p.id!==sel.id).map(p=>`<button class="chip ${L.f7===p.id?'on':''}" data-f7="${p.id}">${esc(p.name)} −15</button>`).join('')}
+    </div></div>`;
+  }
+  h+=`</div>`;
+  app.innerHTML=h;
+  const settle=document.getElementById('btnSettle');
+  settle.textContent=anyF7?'結算（有人 Flip 7）':'結算第 '+rn+' 回合';
+  settle.disabled=readOnly;
+  document.getElementById('btnUndo').disabled=readOnly||!meta.history.length;
+}
+
+/* ---------- interactions ---------- */
+app.addEventListener('click',e=>{
+  const t=e.target.closest('button');if(!t)return;
+  if(t.dataset.sel){selected=t.dataset.sel;saveSel();render();return}
+  if(t.id==='btnSet'){openSettings();return}
+  if(t.id==='btnHist'){openHistory();return}
+  if(t.id==='btnQuickAdd'){addPlayer();return}
+  if(t.id==='btnShare'){shareRoom();return}
+  if(t.id==='btnLeave'){leaveRoom();return}
+  if(t.id==='btnBannerNew'){ask({title:'重新開局？',msg:'分數歸零，玩家保留。',okText:'重新開局'}).then(v=>{if(v)newGame()});return}
+  if(readOnly)return;
+  const L=JSON.parse(JSON.stringify(lineFor(selected)));
+  if(t.dataset.num!=null){
+    const n=+t.dataset.num;const c=L.nums[n]||0;
+    if(n===13&&L.lucky)L.nums[13]=c>=2?1:2;else L.nums[n]=c?0:1;
+    if(n===7&&!L.nums[7])L.unlucky=false;
+    if(!L.nums[n])delete L.nums[n];
+    commitLine(selected,L);return;
+  }
+  if(t.dataset.tog){
+    const k=t.dataset.tog;
+    if(k==='lucky'){L.lucky=!L.lucky;if(L.lucky)L.nums[13]=Math.max(1,L.nums[13]||0);else if((L.nums[13]||0)>1)L.nums[13]=1}
+    else if(k==='unlucky'){L.unlucky=!L.unlucky;if(L.unlucky){L.nums={7:1};L.mods=[];L.lucky=false}}
+    else if(k==='bust')L.bust=!L.bust;
+    commitLine(selected,L);return;
+  }
+  if(t.dataset.mod){const m=t.dataset.mod;const i=L.mods.indexOf(m);if(i>=0)L.mods.splice(i,1);else L.mods.push(m);commitLine(selected,L);return}
+  if(t.dataset.f7){L.f7=t.dataset.f7;commitLine(selected,L);return}
+});
+
+async function settle(){
+  if(readOnly)return;
+  const ls=allLines();const scores={};const zeroReset={};
+  meta.players.forEach(p=>{
+    scores[p.id]=roundScore(ls[p.id],p.id,ls).score;
+    if(meta.zeroTotal&&!ls[p.id].bust&&hasZero(ls[p.id])&&!isFlip7(ls[p.id]))zeroReset[p.id]=true;
+  });
+  const entry={scores,lines:ls,zeroReset};
+  dismissedBanner=null;
+  if(!online){meta.history.push(entry);commitMeta();return}
+  const expected=meta.history.length;
+  try{
+    await fdb.runTransaction(async tx=>{
+      const snap=await tx.get(metaRef());
+      const cur=snap.exists?snap.data():meta;
+      if((cur.history||[]).length!==expected)throw new Error('settled');
+      const next=JSON.parse(JSON.stringify(cur));next.history.push(entry);next.updatedAt=Date.now();
+      tx.set(metaRef(),next);
+    });
+  }catch(e){
+    if(e&&e.message==='settled')toast('這一回合已經有人結算了');
+    else{console.warn(e);toast('結算失敗，請再試一次')}
+  }
+}
+document.getElementById('btnSettle').onclick=settle;
+document.getElementById('btnUndo').onclick=async()=>{
+  if(readOnly||!meta.history.length)return;
+  const v=await ask({title:'撤回上一回合？',msg:'那一回合的牌會恢復到牌桌上。',okText:'撤回'});if(!v)return;
+  const last=meta.history.pop();
+  meta.players.forEach(p=>{if(last.lines[p.id])commitLine(p.id,JSON.parse(JSON.stringify(last.lines[p.id])))});
+  commitMeta();
+};
+
+/* ---------- settings ---------- */
+const dlgS=document.getElementById('dlgSettings');
+function openSheet(el){el.hidden=false;document.body.style.overflow='hidden'}
+function closeSheet(el){el.hidden=true;document.body.style.overflow=''}
+let toastTimer=null;
+function toast(msg){const t=document.getElementById('toast');t.textContent=msg;t.hidden=false;clearTimeout(toastTimer);toastTimer=setTimeout(()=>t.hidden=true,2200)}
+function ask(o){
+  return new Promise(res=>{
+    const d=document.getElementById('dlgAsk');d.classList.add('center');
+    document.getElementById('askTitle').textContent=o.title||'';
+    document.getElementById('askMsg').textContent=o.msg||'';
+    const inp=document.getElementById('askInput');
+    inp.hidden=!o.input;inp.value=o.value||'';inp.placeholder=o.placeholder||'';
+    const ok=document.getElementById('askOk');ok.textContent=o.okText||'確定';
+    ok.classList.toggle('danger',!!o.danger);
+    const done=v=>{d.hidden=true;document.body.style.overflow='';ok.onclick=null;document.getElementById('askCancel').onclick=null;inp.onkeydown=null;res(v)};
+    ok.onclick=()=>done(o.input?inp.value:true);
+    document.getElementById('askCancel').onclick=()=>done(null);
+    inp.onkeydown=e=>{if(e.key==='Enter')ok.click()};
+    d.hidden=false;document.body.style.overflow='hidden';
+    if(o.input)setTimeout(()=>{inp.focus();inp.select()},50);
+  });
+}
+function openSettings(){
+  document.getElementById('inTarget').value=meta.target;
+  document.getElementById('swBrutal').classList.toggle('on',meta.brutal);
+  document.getElementById('zeroRound').classList.toggle('on',!meta.zeroTotal);
+  document.getElementById('zeroTotal').classList.toggle('on',!!meta.zeroTotal);
+  drawPlist();openSheet(dlgS);
+}
+function drawPlist(){
+  document.getElementById('plist').innerHTML=meta.players.map(p=>`<div class="pi"><input value="${esc(p.name)}" data-pid="${p.id}"><button class="small" data-del="${p.id}">移除</button></div>`).join('');
+}
+document.getElementById('inTarget').onchange=e=>{meta.target=Math.max(10,+e.target.value||200);commitMeta()};
+document.getElementById('swBrutal').onclick=()=>{meta.brutal=!meta.brutal;document.getElementById('swBrutal').classList.toggle('on',meta.brutal);commitMeta()};
+document.getElementById('zeroRound').onclick=()=>{meta.zeroTotal=false;openSettings();commitMeta()};
+document.getElementById('zeroTotal').onclick=()=>{meta.zeroTotal=true;openSettings();commitMeta()};
+let nameTimer=null;
+document.getElementById('plist').addEventListener('input',e=>{
+  const p=meta.players.find(x=>x.id===e.target.dataset.pid);if(!p)return;
+  p.name=e.target.value;clearTimeout(nameTimer);nameTimer=setTimeout(commitMeta,500);
+});
+document.getElementById('plist').addEventListener('click',async e=>{
+  const b=e.target.closest('[data-del]');if(!b)return;
+  const p=meta.players.find(x=>x.id===b.dataset.del);
+  const v=await ask({title:'移除 '+(p?p.name:'')+'？',msg:'這位玩家的歷史分數也會一併移除。',okText:'移除',danger:true});if(!v)return;
+  meta.players=meta.players.filter(x=>x.id!==b.dataset.del);drawPlist();if(!meta.players.length)closeSheet(dlgS);commitMeta();
+});
+async function addPlayer(){
+  const name=await ask({title:'新增玩家',input:true,value:'玩家 '+(meta.players.length+1),okText:'加入'});
+  if(name===null)return;
+  const p={id:uid(),name:name.trim()||('玩家 '+(meta.players.length+1))};
+  meta.players.push(p);selected=p.id;saveSel();
+  if(!dlgS.hidden)drawPlist();
+  commitMeta();
+}
+document.getElementById('btnAddPlayer').onclick=addPlayer;
+function newGame(){meta.history=[];meta.gameId=uid();dismissedBanner=null;commitMeta()}
+document.getElementById('btnNewGame').onclick=async()=>{const v=await ask({title:'重新開局？',msg:'分數歸零，玩家保留。',okText:'重新開局'});if(v){closeSheet(dlgS);newGame()}};
+document.getElementById('btnResetAll').onclick=async()=>{const v=await ask({title:'清除所有玩家與紀錄？',msg:'玩家與回合紀錄都會被刪除，無法復原。',okText:'清除',danger:true});if(v){closeSheet(dlgS);const fm=freshMeta();fm.brutal=meta.brutal;fm.target=meta.target;fm.zeroTotal=meta.zeroTotal;meta=fm;commitMeta()}};
+
+/* ---------- history ---------- */
+function openHistory(){
+  const b=document.getElementById('histBody');
+  if(!meta.history.length)b.innerHTML='<div class="empty">還沒有結算過任何回合。</div>';
+  else{
+    const T=totals();
+    let h=`<table class="hist"><thead><tr><th>回合</th>${meta.players.map(p=>`<th>${esc(p.name)}</th>`).join('')}</tr></thead><tbody>`;
+    meta.history.forEach((r,i)=>{
+      h+=`<tr><td>${i+1}</td>${meta.players.map(p=>{const l=r.lines[p.id];const cls=l&&l.bust?'b':(l&&isFlip7(l)?'g':'');const z=r.zeroReset&&r.zeroReset[p.id]?' ⟲':'';return `<td class="${cls}">${r.scores[p.id]??'—'}${z}</td>`}).join('')}</tr>`;
+    });
+    h+=`</tbody><tfoot><tr><td>總分</td>${meta.players.map(p=>`<td>${T[p.id]}</td>`).join('')}</tr></tfoot></table>
+      <div class="note">紅色＝爆牌，金色＝完成 Flip 7，⟲＝持有 The Zero 使累計總分歸零。</div>`;
+    b.innerHTML=h;
+  }
+  openSheet(document.getElementById('dlgHistory'));
+}
+document.addEventListener('click',e=>{
+  const b=e.target.closest('[data-close]');if(b){closeSheet(b.closest('.sheet'));return}
+  if(e.target.classList&&e.target.classList.contains('sheet')){if(e.target.id==='dlgAsk')document.getElementById('askCancel').click();else closeSheet(e.target)}
+});
+
+/* ---------- rooms ---------- */
+const FIREBASE_CONFIG={
+  apiKey:"AIzaSyD4yXghP4WQ48WomgahTje0gpmt0KWHlP0",
+  authDomain:"flip-7-74c44.firebaseapp.com",
+  projectId:"flip-7-74c44",
+  appId:"1:797583561982:web:872a9d8c5c32d8a15b01af"
+};
+function genCode(){const A='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';let c='';for(let i=0;i<5;i++)c+=A[Math.floor(Math.random()*A.length)];return c}
+function normCode(v){return String(v||'').toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,8)}
+function roomFromUrl(){const m=location.hash.match(/#([A-Za-z0-9]{4,8})/);return m?normCode(m[1]):null}
+function renderRoomScreen(){
+  app.innerHTML=`<div class="room"><h1>FLIP 7<em>With a Vengeance</em></h1>
+    <p>同一桌的人進同一個房間，就能各自在手機上記分、即時同步。</p>
+    <button class="primary" id="btnNewRoom" style="width:100%">建立新房間</button>
+    <div class="or">或輸入朋友給你的房間代碼</div>
+    <div class="join"><input id="inRoom" maxlength="8" placeholder="例如 K7P2Q" autocapitalize="characters" autocomplete="off"><button class="small primaryish" id="btnJoin">加入</button></div>
+    <p style="font-size:12px;margin-top:24px">不想同步？<button class="small" id="btnSolo">單機使用</button></p></div>`;
+  document.getElementById('bar').hidden=true;
+  document.getElementById('btnNewRoom').onclick=()=>enterRoom(genCode());
+  document.getElementById('btnJoin').onclick=()=>{const c=normCode(document.getElementById('inRoom').value);if(c.length<4){toast('代碼至少 4 碼');return}enterRoom(c)};
+  document.getElementById('inRoom').onkeydown=e=>{if(e.key==='Enter')document.getElementById('btnJoin').click()};
+  document.getElementById('btnSolo').onclick=()=>{room=null;online=false;syncState='local';const local=loadLocal();meta=(local&&local.meta)||freshMeta();lines=(local&&local.lines)||{};document.getElementById('bar').hidden=false;render()};
+}
+function shareRoom(){
+  const url=location.origin+location.pathname+'#'+room;
+  const text='Flip 7 計分房間 '+room+'：'+url;
+  if(navigator.share){navigator.share({title:'Flip 7 計分器',text:'房間代碼 '+room,url}).catch(()=>{})}
+  else if(navigator.clipboard){navigator.clipboard.writeText(url).then(()=>toast('連結已複製')).catch(()=>toast(text))}
+  else toast(text);
+}
+function leaveRoom(){
+  unsubs.forEach(u=>{try{u()}catch(e){}});unsubs=[];
+  room=null;online=false;syncState='local';meta=null;lines={};
+  try{localStorage.removeItem(ROOMKEY)}catch(e){}
+  history.replaceState(null,'',location.pathname);
+  renderRoomScreen();
+}
+function enterRoom(code){
+  room=code;
+  try{localStorage.setItem(ROOMKEY,room)}catch(e){}
+  history.replaceState(null,'',location.pathname+'#'+room);
+  document.getElementById('bar').hidden=false;
+  meta=null;lines={};render();
+  if(!fdb){online=false;syncState='local';meta=freshMeta();toast('無法連線 Firebase，改為單機模式');render();return}
+  online=true;syncState='ok';
+  let metaReady=false;
+  unsubs.push(metaRef().onSnapshot(snap=>{
+    if(snap.exists){
+      if(metaInflight||metaPending)return;
+      meta=JSON.parse(JSON.stringify(snap.data()));
+      if(!meta.history)meta.history=[];if(!meta.players)meta.players=[];
+    }else if(!metaReady){
+      meta=freshMeta();metaPending=JSON.parse(JSON.stringify(meta));flushMeta();
+    }
+    metaReady=true;syncState='ok';render();
+  },e=>{console.warn(e);syncState='bad';if(!meta)meta=freshMeta();render()}));
+  unsubs.push(linesRef().onSnapshot(snap=>{
+    const next={};
+    snap.docs.forEach(d=>{next[d.id]=JSON.parse(JSON.stringify(d.data()))});
+    Object.keys(pendingLine).concat(Object.keys(inflight)).forEach(pid=>{if(lines[pid])next[pid]=lines[pid]});
+    lines=next;render();
+  },e=>{console.warn(e);syncState='bad';render()}));
+}
+
+/* ---------- boot ---------- */
+selected=loadSel();
+try{
+  if(window.firebase){firebase.initializeApp(FIREBASE_CONFIG);fdb=firebase.firestore();}
+}catch(e){console.warn('firebase init failed',e)}
+const startRoom=roomFromUrl()||(function(){try{return localStorage.getItem(ROOMKEY)}catch(e){return null}})();
+if(startRoom&&startRoom.length>=4)enterRoom(startRoom);else renderRoomScreen();
+})();
+</script>
+</body>
+</html>
